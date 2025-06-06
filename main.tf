@@ -6,7 +6,7 @@ terraform {
     # Azure Resource Manager provider and version
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0.2"
+      version = "~> 3.105.0"
     }
     cloudinit = {
       source  = "hashicorp/cloudinit"
@@ -27,7 +27,7 @@ provider "cloudinit" {
 
 variable "labelPrefix" {
   type = string
-  default = ""
+  default = "mo10serek"
 }
 
 variable "region" {
@@ -62,9 +62,9 @@ resource "azurerm_virtual_network" "vnet" {
 
 resource "azurerm_subnet" "webserver" {
     name = "${var.labelPrefix}-subnet"
-    resource_group_name = var.azurerm_resource_group.rg.name
-    virtual_network_name = var.azurerm_virtual_network.vnet.name
-    address_prefixixes = ["10.0.1.0/24"]
+    resource_group_name = azurerm_resource_group.rg.name
+    virtual_network_name = azurerm_virtual_network.vnet.name
+    address_prefixes = ["10.0.1.0/24"]
 }
 
 resource "azurerm_network_security_group" "webserver" {
@@ -97,23 +97,23 @@ resource "azurerm_network_security_group" "webserver" {
   }
 }
 
-resource "azurerm_network_interface" "vnic" {
+resource "azurerm_network_interface" "webserver" {
     name                = "${var.labelPrefix}-network-interface-card"
     location            = azurerm_resource_group.rg.location
     resource_group_name = azurerm_resource_group.rg.name
 
     ip_configuration {
         name                          = "${var.labelPrefix}-Configuration"
-        subnet_id                     = azurerm_virtual_network.subnet.name
+        subnet_id                     = azurerm_subnet.webserver.id
         private_ip_address_allocation = "Dynamic"
-        public_ip_address_id          = azurerm_public_ip.ip
+        public_ip_address_id          = azurerm_public_ip.webserver.id
     }
 
 }
 
 resource "azurerm_network_interface_security_group_association" "webserver" {
-    network_interface_id = azurerm_network_interface.webserver.subnet_id
-    azurerm_network_security_group_id = azurerm_network_security_group.subnet_id
+    network_interface_id = azurerm_network_interface.webserver.id
+    network_security_group_id = azurerm_network_security_group.webserver.id
 }
 
 data "cloudinit_config" "init" {
@@ -127,47 +127,43 @@ data "cloudinit_config" "init" {
   }
 }
 
-resource "azurerm_virtual_machine" "vm" {
+resource "azurerm_virtual_machine" "webserver" {
   name                        = "${var.labelPrefix}-virtual_machine"
   resource_group_name         = azurerm_resource_group.rg.name
   location                    = azurerm_resource_group.rg.location
-  network_interface_id        = [azurerm_network_interface.webserver.id]
-  size                        = "Standard_B1s"
+  network_interface_ids        = [azurerm_network_interface.webserver.id]
+  vm_size                        = "Standard_B1s"
   
-  instances                   = 1
-  platform_fault_domain_count = 1     # For zonal deployments, this must be set to 1
-  zones                       = ["1"] # Zones required to lookup zone in the startup script
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = file("~/.ssh/id_rsa.pub")    
-  }
-  
-  source_image_reference {
+  storage_image_reference {
     publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-LTS-gen2"
+   offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts"
     version   = "latest"
   }
-  
-  os_disk {
+
+  storage_os_disk {
     name                 = "${var.labelPrefix}-disk"
-    storage_account_type = "Standard_LRS"
+    managed_disk_type = "Standard_LRS"
     caching              = "ReadWrite"
+    create_option        = "FromImage"
   }
 
-  computer_name                  = "${var.labelPrefix}-virtual_machine"
-  admin_username                 = var.admin_username
-  disable_password_authetication = true
+  os_profile {
+    computer_name  = "${var.labelPrefix}-vm"
+    admin_username = "mo10serek"
+    admin_password = "mX10baz3"
+  }
 
-  custom_data = data.cloudinit_config.init.rendered
+  os_profile_linux_config {
+    disable_password_authentication = true
+  }
 }
 
 output "resource_group_name" {
-    value = resource_group.rg.name
+    value = azurerm_resource_group.rg.name
 }
 
 output "public_ip" {
-    value = azurerm_virtual_machine.vm.public_ip_address
+    value = azurerm_public_ip.webserver.name
 }
 
