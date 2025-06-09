@@ -135,8 +135,8 @@ resource "azurerm_virtual_machine" "webserver" {
   name                        = "${var.labelPrefix}-virtual_machine"
   resource_group_name         = azurerm_resource_group.rg.name
   location                    = azurerm_resource_group.rg.location
-  network_interface_ids        = [azurerm_network_interface.webserver.id]
-  vm_size                        = "Standard_B1s"
+  network_interface_ids       = [azurerm_network_interface.webserver.id]
+  vm_size                     = "Standard_B1s"
   
   storage_image_reference {
     publisher = "Canonical"
@@ -147,7 +147,7 @@ resource "azurerm_virtual_machine" "webserver" {
 
   storage_os_disk {
     name                 = "${var.labelPrefix}-disk"
-    managed_disk_type = "Standard_LRS"
+    managed_disk_type    = "Standard_LRS"
     caching              = "ReadWrite"
     create_option        = "FromImage"
   }
